@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+:root {
+  --main: #91C6BC;
+  --secondary: #4B9DA9;
+  --background: #39c5b2;
+  --accent: #E37434;
+  --darkText: #1f3b3b;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--darkText);
+}
+
+/* Smooth feel */
+* {
+  transition: all 0.2s ease;
+}
