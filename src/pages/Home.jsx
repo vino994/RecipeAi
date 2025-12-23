@@ -12,6 +12,11 @@ import { saveRecipe } from "../utils/recipeHistory";
 import RecipeHistory from "../components/RecipeHistory";
 import { LANG } from "../utils/languageMap";
 
+/* ---------- DEVICE DETECT ---------- */
+
+const isIOS = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent);
+
 /* ---------- BUTTON STYLES ---------- */
 
 const btnPrimary =
@@ -40,13 +45,15 @@ export default function Home() {
   const [text, setText] = useState("");
   const [recipe, setRecipe] = useState("");
   const [loading, setLoading] = useState(false);
+  const [recipeSeed, setRecipeSeed] = useState(0); // 🔥 NEXT RECIPE LOGIC
 
   const [voices, setVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(null);
 
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
-  const silenceTimer = useRef(null);
+
+  const isiPhone = isIOS();
 
   /* ---------- LOAD VOICES ---------- */
 
@@ -61,22 +68,22 @@ export default function Home() {
     window.speechSynthesis.onvoiceschanged = load;
   }, [language]);
 
-  /* ---------- SPEECH INPUT ---------- */
+  /* ---------- SPEECH INPUT (ANDROID / DESKTOP ONLY) ---------- */
 
   const startListening = () => {
+    if (isiPhone) return;
+
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      alert("Voice input not supported on this device");
+      alert("Voice input not supported on this browser");
       return;
     }
 
     setText("");
-
     const recog = new SR();
-    recog.lang = LANG[language].speech;
 
-    // ✅ IMPORTANT: iOS-safe settings
-    recog.continuous = false;
+    recog.lang = LANG[language].speech;
+    recog.continuous = false; // ✅ Mobile safe
     recog.interimResults = false;
 
     recog.onresult = (e) => {
@@ -84,13 +91,8 @@ export default function Home() {
       setText(spoken);
     };
 
-    recog.onerror = () => {
-      setListening(false);
-    };
-
-    recog.onend = () => {
-      setListening(false);
-    };
+    recog.onerror = () => setListening(false);
+    recog.onend = () => setListening(false);
 
     recog.start();
     recognitionRef.current = recog;
@@ -121,10 +123,10 @@ export default function Home() {
       setLoading(true);
       stopVoice();
 
-      const res = await getRecipe(text);
+      // 🔥 seed ensures new recipe each time
+      const res = await getRecipe(`${text} ${recipeSeed}`);
       let finalRecipe = res.data.recipe;
 
-      // Translate FULL recipe to selected language
       if (language !== "en") {
         const tRes = await translateRecipe(finalRecipe, language);
         finalRecipe = tRes.data.translated;
@@ -132,14 +134,22 @@ export default function Home() {
 
       setRecipe(finalRecipe);
       saveRecipe(finalRecipe);
-
       speakText(finalRecipe, language, selectedVoice);
+
     } catch (err) {
       console.error(err);
-      alert("Recipe failed. Please try again.");
+      alert("Recipe failed. Try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  /* ---------- NEXT RECIPE ---------- */
+
+  const nextRecipe = () => {
+    stopVoice();
+    setRecipeSeed((s) => s + 1);
+    generateRecipe();
   };
 
   /* ---------- UI ---------- */
@@ -169,11 +179,18 @@ export default function Home() {
           ))}
         </div>
 
+        {/* iPhone Hint */}
+        {isiPhone && (
+          <div className="text-center text-sm text-red-500 mb-3">
+            📱 iPhone users: Voice input not supported. Please type ingredients.
+          </div>
+        )}
+
         {/* INPUT */}
         <textarea
           className="w-full border rounded-xl p-4 text-lg focus:outline-none focus:ring-2 focus:ring-black"
           rows={4}
-          placeholder="Speak or type ingredients..."
+          placeholder="Type ingredients (voice works on Android & Desktop)"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -181,15 +198,13 @@ export default function Home() {
         {/* ACTIONS */}
         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
 
-          {!listening ? (
-            <button
-              onClick={startListening}
-              className={btnPrimary}
-              disabled={loading}
-            >
+          {!isiPhone && !listening && (
+            <button onClick={startListening} className={btnPrimary}>
               🎤 Speak
             </button>
-          ) : (
+          )}
+
+          {listening && (
             <button onClick={stopListening} className={btnDanger}>
               ⏹ Stop
             </button>
@@ -212,13 +227,18 @@ export default function Home() {
               ❌ Cancel
             </button>
           )}
+
+          {recipe && (
+            <button onClick={nextRecipe} className={btnSecondary}>
+              🔄 Next Recipe
+            </button>
+          )}
         </div>
 
         {/* OUTPUT */}
         {recipe && (
           <div className="mt-6 p-4 bg-gray-100 rounded-xl">
 
-            {/* VOICE CONTROLS */}
             <div className="flex flex-wrap justify-center gap-3 mb-4">
               <button
                 onClick={() => speakText(recipe, language, selectedVoice)}
