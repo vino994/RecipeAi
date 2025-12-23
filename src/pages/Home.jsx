@@ -70,34 +70,44 @@ export default function Home() {
 
   /* ---------- SPEECH INPUT (ANDROID / DESKTOP ONLY) ---------- */
 
-  const startListening = () => {
-    if (isiPhone) return;
+const startListening = () => {
+  if (isIOS()) {
+    alert("🎤 Voice input not supported on iPhone. Please type ingredients.");
+    return;
+  }
 
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      alert("Voice input not supported on this browser");
-      return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert("Voice input not supported on this browser");
+    return;
+  }
+
+  setText("");
+  const recog = new SR();
+  recog.lang = LANG[language].speech;
+  recog.continuous = true;
+  recog.interimResults = true;
+
+  recog.onresult = (e) => {
+    clearTimeout(silenceTimer.current);
+    let finalText = "";
+
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalText += e.results[i][0].transcript + " ";
+      }
     }
 
-    setText("");
-    const recog = new SR();
-
-    recog.lang = LANG[language].speech;
-    recog.continuous = false; // ✅ Mobile safe
-    recog.interimResults = false;
-
-    recog.onresult = (e) => {
-      const spoken = e.results[0][0].transcript;
-      setText(spoken);
-    };
-
-    recog.onerror = () => setListening(false);
-    recog.onend = () => setListening(false);
-
-    recog.start();
-    recognitionRef.current = recog;
-    setListening(true);
+    if (finalText) setText(p => p + finalText);
+    silenceTimer.current = setTimeout(stopListening, 2500);
   };
+
+  recog.onerror = stopListening;
+  recog.start();
+  recognitionRef.current = recog;
+  setListening(true);
+};
+
 
   const stopListening = () => {
     recognitionRef.current?.stop();
@@ -145,6 +155,8 @@ export default function Home() {
   };
 
   /* ---------- NEXT RECIPE ---------- */
+const isIOS = () =>
+  /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const nextRecipe = () => {
     stopVoice();
@@ -187,21 +199,31 @@ export default function Home() {
         )}
 
         {/* INPUT */}
-        <textarea
-          className="w-full border rounded-xl p-4 text-lg focus:outline-none focus:ring-2 focus:ring-black"
-          rows={4}
-          placeholder="Type ingredients (voice works on Android & Desktop)"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+    <textarea
+  className="w-full border rounded-xl p-4 text-lg"
+  rows={4}
+  placeholder={
+    isIOS()
+      ? "⌨️ Voice input not supported on iPhone. Please type ingredients..."
+      : "🎤 Speak or type ingredients..."
+  }
+  value={text}
+  onChange={(e) => setText(e.target.value)}
+/>
+
 
         {/* ACTIONS */}
         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
 
           {!isiPhone && !listening && (
-            <button onClick={startListening} className={btnPrimary}>
-              🎤 Speak
-            </button>
+         <button
+  onClick={startListening}
+  disabled={isIOS()}
+  className={`${btnPrimary} ${isIOS() ? "opacity-50 cursor-not-allowed" : ""}`}
+>
+  🎤 Speak
+</button>
+
           )}
 
           {listening && (
