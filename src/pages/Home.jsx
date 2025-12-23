@@ -15,10 +15,10 @@ import { LANG } from "../utils/languageMap";
 /* ---------- BUTTON STYLES ---------- */
 
 const btnPrimary =
-  "px-6 py-3 rounded-xl bg-black text-white text-lg font-semibold shadow hover:scale-105 transition w-full sm:w-auto";
+  "px-6 py-3 rounded-xl bg-black text-white text-lg font-semibold shadow hover:scale-105 transition w-full sm:w-auto disabled:opacity-50";
 
 const btnSecondary =
-  "px-6 py-3 rounded-xl bg-gray-200 text-gray-800 text-lg font-semibold shadow hover:bg-gray-300 transition w-full sm:w-auto";
+  "px-6 py-3 rounded-xl bg-gray-200 text-gray-800 text-lg font-semibold shadow hover:bg-gray-300 transition w-full sm:w-auto disabled:opacity-50";
 
 const btnDanger =
   "px-6 py-3 rounded-xl bg-red-500 text-white text-lg font-semibold shadow hover:bg-red-600 transition w-full sm:w-auto";
@@ -51,38 +51,47 @@ export default function Home() {
   /* ---------- LOAD VOICES ---------- */
 
   useEffect(() => {
-    const v = getVoices(language);
-    setVoices(v);
-    setSelectedVoice(v[0] || null);
+    const load = () => {
+      const v = getVoices(language);
+      setVoices(v);
+      setSelectedVoice(v[0] || null);
+    };
+
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
   }, [language]);
 
   /* ---------- SPEECH INPUT ---------- */
 
   const startListening = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return alert("Voice not supported");
+    if (!SR) {
+      alert("Voice input not supported on this device");
+      return;
+    }
 
     setText("");
+
     const recog = new SR();
     recog.lang = LANG[language].speech;
-    recog.continuous = true;
-    recog.interimResults = true;
+
+    // ✅ IMPORTANT: iOS-safe settings
+    recog.continuous = false;
+    recog.interimResults = false;
 
     recog.onresult = (e) => {
-      clearTimeout(silenceTimer.current);
-      let finalText = "";
-
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          finalText += e.results[i][0].transcript + " ";
-        }
-      }
-
-      if (finalText) setText(p => p + finalText);
-      silenceTimer.current = setTimeout(stopListening, 2500);
+      const spoken = e.results[0][0].transcript;
+      setText(spoken);
     };
 
-    recog.onerror = stopListening;
+    recog.onerror = () => {
+      setListening(false);
+    };
+
+    recog.onend = () => {
+      setListening(false);
+    };
+
     recog.start();
     recognitionRef.current = recog;
     setListening(true);
@@ -98,9 +107,9 @@ export default function Home() {
 
   const resetAll = () => {
     stopVoice();
+    stopListening();
     setText("");
     setRecipe("");
-    setListening(false);
   };
 
   /* ---------- GENERATE ---------- */
@@ -115,6 +124,7 @@ export default function Home() {
       const res = await getRecipe(text);
       let finalRecipe = res.data.recipe;
 
+      // Translate FULL recipe to selected language
       if (language !== "en") {
         const tRes = await translateRecipe(finalRecipe, language);
         finalRecipe = tRes.data.translated;
@@ -126,7 +136,7 @@ export default function Home() {
       speakText(finalRecipe, language, selectedVoice);
     } catch (err) {
       console.error(err);
-      alert("Recipe failed");
+      alert("Recipe failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -161,7 +171,7 @@ export default function Home() {
 
         {/* INPUT */}
         <textarea
-          className="w-full border rounded-xl p-4 text-lg"
+          className="w-full border rounded-xl p-4 text-lg focus:outline-none focus:ring-2 focus:ring-black"
           rows={4}
           placeholder="Speak or type ingredients..."
           value={text}
@@ -172,7 +182,11 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
 
           {!listening ? (
-            <button onClick={startListening} className={btnPrimary}>
+            <button
+              onClick={startListening}
+              className={btnPrimary}
+              disabled={loading}
+            >
               🎤 Speak
             </button>
           ) : (
@@ -184,7 +198,11 @@ export default function Home() {
           {loading ? (
             <Loader />
           ) : (
-            <button onClick={generateRecipe} className={btnSecondary}>
+            <button
+              onClick={generateRecipe}
+              className={btnSecondary}
+              disabled={!text.trim()}
+            >
               🍳 Generate
             </button>
           )}
@@ -202,8 +220,18 @@ export default function Home() {
 
             {/* VOICE CONTROLS */}
             <div className="flex flex-wrap justify-center gap-3 mb-4">
-              <button onClick={() => speakText(recipe, language, selectedVoice)} className={btnSecondary}>🔊 Read</button>
-              <button onClick={() => speakSteps(recipe, language, selectedVoice)} className={btnSecondary}>🪜 Steps</button>
+              <button
+                onClick={() => speakText(recipe, language, selectedVoice)}
+                className={btnSecondary}
+              >
+                🔊 Read
+              </button>
+              <button
+                onClick={() => speakSteps(recipe, language, selectedVoice)}
+                className={btnSecondary}
+              >
+                🪜 Steps
+              </button>
               <button onClick={pauseVoice} className={btnSecondary}>⏸</button>
               <button onClick={resumeVoice} className={btnSecondary}>▶</button>
               <button onClick={stopVoice} className={btnDanger}>⏹</button>
