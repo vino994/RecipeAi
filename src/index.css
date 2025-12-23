@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* ---------------- THEME VARIABLES ---------------- */
 :root {
   --main: #91C6BC;
   --secondary: #4B9DA9;
@@ -8,6 +9,7 @@
   --darkText: #1f3b3b;
 }
 
+/* ---------------- BASE STYLES ---------------- */
 body {
   background-color: var(--background);
   color: var(--darkText);
@@ -16,4 +18,23 @@ body {
 /* Smooth feel */
 * {
   transition: all 0.2s ease;
+}
+
+/* ---------------- BUTTON COMPONENTS ---------------- */
+@layer components {
+  .btn {
+    @apply px-6 py-3 rounded-xl font-semibold shadow-lg transition active:scale-95;
+  }
+
+  .btn-primary {
+    @apply bg-indigo-600 text-white hover:bg-indigo-700;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 text-white hover:bg-red-600;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+  }
 }

@@ -10,21 +10,20 @@ import {
 } from "../utils/speak";
 import { saveRecipe } from "../utils/recipeHistory";
 import RecipeHistory from "../components/RecipeHistory";
-import VoiceControls from "../components/VoiceControls";
 import { LANG } from "../utils/languageMap";
 
-/* ---------------- BUTTON STYLES ---------------- */
+/* ---------- BUTTON STYLES ---------- */
 
 const btnPrimary =
-  "flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-black text-white text-lg font-medium shadow hover:scale-105 transition";
+  "px-6 py-3 rounded-xl bg-black text-white text-lg font-semibold shadow hover:scale-105 transition w-full sm:w-auto";
 
 const btnSecondary =
-  "flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gray-200 text-gray-800 text-lg font-medium shadow hover:bg-gray-300 transition";
+  "px-6 py-3 rounded-xl bg-gray-200 text-gray-800 text-lg font-semibold shadow hover:bg-gray-300 transition w-full sm:w-auto";
 
 const btnDanger =
-  "flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-red-500 text-white text-lg font-medium shadow hover:bg-red-600 transition";
+  "px-6 py-3 rounded-xl bg-red-500 text-white text-lg font-semibold shadow hover:bg-red-600 transition w-full sm:w-auto";
 
-/* ---------------- LOADER ---------------- */
+/* ---------- LOADER ---------- */
 
 function Loader() {
   return (
@@ -34,7 +33,7 @@ function Loader() {
   );
 }
 
-/* ---------------- MAIN PAGE ---------------- */
+/* ---------- MAIN ---------- */
 
 export default function Home() {
   const [language, setLanguage] = useState("ta");
@@ -49,7 +48,7 @@ export default function Home() {
   const recognitionRef = useRef(null);
   const silenceTimer = useRef(null);
 
-  /* ---------------- LOAD VOICES ---------------- */
+  /* ---------- LOAD VOICES ---------- */
 
   useEffect(() => {
     const v = getVoices(language);
@@ -57,7 +56,7 @@ export default function Home() {
     setSelectedVoice(v[0] || null);
   }, [language]);
 
-  /* ---------------- SPEECH INPUT ---------------- */
+  /* ---------- SPEECH INPUT ---------- */
 
   const startListening = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -65,7 +64,6 @@ export default function Home() {
 
     setText("");
     const recog = new SR();
-
     recog.lang = LANG[language].speech;
     recog.continuous = true;
     recog.interimResults = true;
@@ -80,13 +78,12 @@ export default function Home() {
         }
       }
 
-      if (finalText) setText((p) => p + finalText);
+      if (finalText) setText(p => p + finalText);
       silenceTimer.current = setTimeout(stopListening, 2500);
     };
 
     recog.onerror = stopListening;
     recog.start();
-
     recognitionRef.current = recog;
     setListening(true);
   };
@@ -97,7 +94,7 @@ export default function Home() {
     setListening(false);
   };
 
-  /* ---------------- RESET ---------------- */
+  /* ---------- RESET ---------- */
 
   const resetAll = () => {
     stopVoice();
@@ -106,14 +103,7 @@ export default function Home() {
     setListening(false);
   };
 
-  /* ---------------- NEXT RECIPE ---------------- */
-
-  const nextRecipe = async () => {
-    if (!text.trim()) return;
-    await generateRecipe();
-  };
-
-  /* ---------------- GENERATE RECIPE ---------------- */
+  /* ---------- GENERATE ---------- */
 
   const generateRecipe = async () => {
     if (!text.trim()) return;
@@ -122,11 +112,9 @@ export default function Home() {
       setLoading(true);
       stopVoice();
 
-      // Always search in English text
       const res = await getRecipe(text);
       let finalRecipe = res.data.recipe;
 
-      // Translate FULL recipe if not English
       if (language !== "en") {
         const tRes = await translateRecipe(finalRecipe, language);
         finalRecipe = tRes.data.translated;
@@ -144,7 +132,7 @@ export default function Home() {
     }
   };
 
-  /* ---------------- UI ---------------- */
+  /* ---------- UI ---------- */
 
   return (
     <div className="min-h-screen flex justify-center px-4 pt-10">
@@ -154,7 +142,7 @@ export default function Home() {
           🍲 Recipe AI Assistant
         </h2>
 
-        {/* LANGUAGE SELECT */}
+        {/* LANGUAGE */}
         <div className="flex flex-wrap justify-center gap-3 mb-4">
           {Object.entries(LANG).map(([code, l]) => (
             <button
@@ -171,8 +159,6 @@ export default function Home() {
           ))}
         </div>
 
-        <VoiceControls />
-
         {/* INPUT */}
         <textarea
           className="w-full border rounded-xl p-4 text-lg"
@@ -182,8 +168,8 @@ export default function Home() {
           onChange={(e) => setText(e.target.value)}
         />
 
-        {/* ACTION BUTTONS */}
-        <div className="flex flex-wrap justify-center gap-4 mt-6">
+        {/* ACTIONS */}
+        <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
 
           {!listening ? (
             <button onClick={startListening} className={btnPrimary}>
@@ -198,7 +184,7 @@ export default function Home() {
           {loading ? (
             <Loader />
           ) : (
-            <button onClick={generateRecipe} className={btnPrimary}>
+            <button onClick={generateRecipe} className={btnSecondary}>
               🍳 Generate
             </button>
           )}
@@ -208,12 +194,6 @@ export default function Home() {
               ❌ Cancel
             </button>
           )}
-
-          {recipe && (
-            <button onClick={nextRecipe} className={btnSecondary}>
-              🔄 Next Recipe
-            </button>
-          )}
         </div>
 
         {/* OUTPUT */}
@@ -221,15 +201,17 @@ export default function Home() {
           <div className="mt-6 p-4 bg-gray-100 rounded-xl">
 
             {/* VOICE CONTROLS */}
-            <div className="flex justify-center gap-4 mb-4">
-              <button onClick={() => speakText(recipe, language, selectedVoice)}>🔊</button>
-              <button onClick={() => speakSteps(recipe, language, selectedVoice)}>🪜</button>
-              <button onClick={pauseVoice}>⏸</button>
-              <button onClick={resumeVoice}>▶</button>
-              <button onClick={stopVoice}>⏹</button>
+            <div className="flex flex-wrap justify-center gap-3 mb-4">
+              <button onClick={() => speakText(recipe, language, selectedVoice)} className={btnSecondary}>🔊 Read</button>
+              <button onClick={() => speakSteps(recipe, language, selectedVoice)} className={btnSecondary}>🪜 Steps</button>
+              <button onClick={pauseVoice} className={btnSecondary}>⏸</button>
+              <button onClick={resumeVoice} className={btnSecondary}>▶</button>
+              <button onClick={stopVoice} className={btnDanger}>⏹</button>
             </div>
 
-            <pre className="whitespace-pre-wrap text-base">{recipe}</pre>
+            <pre className="whitespace-pre-wrap text-base leading-relaxed">
+              {recipe}
+            </pre>
           </div>
         )}
 
