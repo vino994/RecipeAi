@@ -12,10 +12,9 @@ import { saveRecipe } from "../utils/recipeHistory";
 import RecipeHistory from "../components/RecipeHistory";
 import { LANG } from "../utils/languageMap";
 
-/* ---------- DEVICE DETECT ---------- */
+/* ---------- DEVICE DETECT (ONLY ONCE) ---------- */
 
-const isIOS = () =>
-  /iPad|iPhone|iPod/.test(navigator.userAgent);
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 /* ---------- BUTTON STYLES ---------- */
 
@@ -45,69 +44,68 @@ export default function Home() {
   const [text, setText] = useState("");
   const [recipe, setRecipe] = useState("");
   const [loading, setLoading] = useState(false);
-  const [recipeSeed, setRecipeSeed] = useState(0); // 🔥 NEXT RECIPE LOGIC
+  const [recipeSeed, setRecipeSeed] = useState(0);
 
   const [voices, setVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(null);
 
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
-
-  const isiPhone = isIOS();
+  const silenceTimer = useRef(null);
 
   /* ---------- LOAD VOICES ---------- */
 
   useEffect(() => {
-    const load = () => {
+    const loadVoices = () => {
       const v = getVoices(language);
       setVoices(v);
       setSelectedVoice(v[0] || null);
     };
 
-    load();
-    window.speechSynthesis.onvoiceschanged = load;
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
   }, [language]);
 
-  /* ---------- SPEECH INPUT (ANDROID / DESKTOP ONLY) ---------- */
+  /* ---------- SPEECH INPUT (NO iOS) ---------- */
 
-const startListening = () => {
-  if (isIOS()) {
-    alert("🎤 Voice input not supported on iPhone. Please type ingredients.");
-    return;
-  }
-
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    alert("Voice input not supported on this browser");
-    return;
-  }
-
-  setText("");
-  const recog = new SR();
-  recog.lang = LANG[language].speech;
-  recog.continuous = true;
-  recog.interimResults = true;
-
-  recog.onresult = (e) => {
-    clearTimeout(silenceTimer.current);
-    let finalText = "";
-
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        finalText += e.results[i][0].transcript + " ";
-      }
+  const startListening = () => {
+    if (isIOS) {
+      alert("🎤 Voice input not supported on iPhone. Please type ingredients.");
+      return;
     }
 
-    if (finalText) setText(p => p + finalText);
-    silenceTimer.current = setTimeout(stopListening, 2500);
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      alert("Voice input not supported");
+      return;
+    }
+
+    setText("");
+    const recog = new SR();
+    recog.lang = LANG[language].speech;
+    recog.continuous = true;
+    recog.interimResults = true;
+
+    recog.onresult = (e) => {
+      clearTimeout(silenceTimer.current);
+      let finalText = "";
+
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          finalText += e.results[i][0].transcript + " ";
+        }
+      }
+
+      if (finalText) setText((p) => p + finalText);
+      silenceTimer.current = setTimeout(stopListening, 2500);
+    };
+
+    recog.onerror = stopListening;
+    recog.start();
+
+    recognitionRef.current = recog;
+    setListening(true);
   };
-
-  recog.onerror = stopListening;
-  recog.start();
-  recognitionRef.current = recog;
-  setListening(true);
-};
-
 
   const stopListening = () => {
     recognitionRef.current?.stop();
@@ -133,7 +131,6 @@ const startListening = () => {
       setLoading(true);
       stopVoice();
 
-      // 🔥 seed ensures new recipe each time
       const res = await getRecipe(`${text} ${recipeSeed}`);
       let finalRecipe = res.data.recipe;
 
@@ -145,18 +142,15 @@ const startListening = () => {
       setRecipe(finalRecipe);
       saveRecipe(finalRecipe);
       speakText(finalRecipe, language, selectedVoice);
-
     } catch (err) {
       console.error(err);
-      alert("Recipe failed. Try again.");
+      alert("Recipe failed");
     } finally {
       setLoading(false);
     }
   };
 
   /* ---------- NEXT RECIPE ---------- */
-const isIOS = () =>
-  /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const nextRecipe = () => {
     stopVoice();
@@ -181,9 +175,7 @@ const isIOS = () =>
               key={code}
               onClick={() => setLanguage(code)}
               className={`px-4 py-2 rounded-full text-lg ${
-                language === code
-                  ? "bg-black text-white"
-                  : "bg-gray-200"
+                language === code ? "bg-black text-white" : "bg-gray-200"
               }`}
             >
               {l.label}
@@ -191,39 +183,33 @@ const isIOS = () =>
           ))}
         </div>
 
-        {/* iPhone Hint */}
-        {isiPhone && (
+        {/* iOS Hint */}
+        {isIOS && (
           <div className="text-center text-sm text-red-500 mb-3">
-            📱 iPhone users: Voice input not supported. Please type ingredients.
+            📱 iPhone: Voice input not supported. Please type ingredients.
           </div>
         )}
 
         {/* INPUT */}
-    <textarea
-  className="w-full border rounded-xl p-4 text-lg"
-  rows={4}
-  placeholder={
-    isIOS()
-      ? "⌨️ Voice input not supported on iPhone. Please type ingredients..."
-      : "🎤 Speak or type ingredients..."
-  }
-  value={text}
-  onChange={(e) => setText(e.target.value)}
-/>
-
+        <textarea
+          className="w-full border rounded-xl p-4 text-lg"
+          rows={4}
+          placeholder={
+            isIOS
+              ? "⌨️ Type ingredients (voice not supported on iPhone)"
+              : "🎤 Speak or type ingredients..."
+          }
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
 
         {/* ACTIONS */}
         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
 
-          {!isiPhone && !listening && (
-         <button
-  onClick={startListening}
-  disabled={isIOS()}
-  className={`${btnPrimary} ${isIOS() ? "opacity-50 cursor-not-allowed" : ""}`}
->
-  🎤 Speak
-</button>
-
+          {!isIOS && !listening && (
+            <button onClick={startListening} className={btnPrimary}>
+              🎤 Speak
+            </button>
           )}
 
           {listening && (
@@ -262,18 +248,8 @@ const isIOS = () =>
           <div className="mt-6 p-4 bg-gray-100 rounded-xl">
 
             <div className="flex flex-wrap justify-center gap-3 mb-4">
-              <button
-                onClick={() => speakText(recipe, language, selectedVoice)}
-                className={btnSecondary}
-              >
-                🔊 Read
-              </button>
-              <button
-                onClick={() => speakSteps(recipe, language, selectedVoice)}
-                className={btnSecondary}
-              >
-                🪜 Steps
-              </button>
+              <button onClick={() => speakText(recipe, language, selectedVoice)} className={btnSecondary}>🔊 Read</button>
+              <button onClick={() => speakSteps(recipe, language, selectedVoice)} className={btnSecondary}>🪜 Steps</button>
               <button onClick={pauseVoice} className={btnSecondary}>⏸</button>
               <button onClick={resumeVoice} className={btnSecondary}>▶</button>
               <button onClick={stopVoice} className={btnDanger}>⏹</button>
