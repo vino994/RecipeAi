@@ -25,10 +25,18 @@ export function speakText(text, lang, voice) {
 
   const utterance = new SpeechSynthesisUtterance(text);
 
-  utterance.lang = LANG_MAP[lang] || "en-US";
+  const langMap = {
+    ta: "ta-IN",
+    hi: "hi-IN",
+    ml: "ml-IN",
+    en: "en-US"
+  };
+
+  utterance.lang = langMap[lang] || "en-US";
   utterance.rate = lang === "en" ? 1 : 0.85;
   utterance.pitch = 1;
 
+  // ✅ ONLY assign voice if available
   if (voice) utterance.voice = voice;
 
   window.speechSynthesis.speak(utterance);
@@ -95,6 +103,29 @@ export function stopVoice() {
 
 export function getVoices(lang) {
   const voices = window.speechSynthesis.getVoices();
-  const code = LANG_MAP[lang] || "en-US";
-  return voices.filter(v => v.lang === code);
+
+  const langMap = {
+    ta: ["ta-IN"],
+    hi: ["hi-IN"],
+    ml: ["ml-IN"],
+    en: ["en-US", "en-GB"]
+  };
+
+  // 1️⃣ Try exact language voices
+  const exact = voices.filter(v =>
+    langMap[lang]?.some(code => v.lang.startsWith(code))
+  );
+
+  if (exact.length > 0) return exact;
+
+  // 2️⃣ Fallback to ANY Indian English voice
+  const indianEnglish = voices.filter(v =>
+    v.lang.startsWith("en-IN")
+  );
+
+  if (indianEnglish.length > 0) return indianEnglish;
+
+  // 3️⃣ Final fallback: ANY English voice
+  return voices.filter(v => v.lang.startsWith("en"));
 }
+
