@@ -1,31 +1,15 @@
-import { useState, useEffect, useRef } from "react";
-import { getRecipe, translateRecipe } from "../services/api";
-import {
-  speakText,
-  speakSteps,
-  pauseVoice,
-  resumeVoice,
-  stopVoice,
-  getVoices
-} from "../utils/speak";
-import { saveRecipe } from "../utils/recipeHistory";
-import RecipeHistory from "../components/RecipeHistory";
+import { useState, useRef } from "react";
+import { getRecipe } from "../services/api";
+import { playTTS } from "../services/tts";
 import { LANG } from "../utils/languageMap";
 
-/* ---------- DEVICE DETECT (ONCE ONLY) ---------- */
-const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
 /* ---------- BUTTON STYLES ---------- */
-const btnPrimary =
-  "px-6 py-3 rounded-xl bg-black text-white text-lg font-semibold shadow hover:scale-105 transition w-full sm:w-auto disabled:opacity-50";
+const btn =
+  "px-6 py-3 rounded-xl text-lg font-semibold shadow transition w-full sm:w-auto";
+const btnPrimary = `${btn} bg-black text-white`;
+const btnSecondary = `${btn} bg-gray-200 text-gray-800`;
+const btnDanger = `${btn} bg-red-500 text-white`;
 
-const btnSecondary =
-  "px-6 py-3 rounded-xl bg-gray-200 text-gray-800 text-lg font-semibold shadow hover:bg-gray-300 transition w-full sm:w-auto disabled:opacity-50";
-
-const btnDanger =
-  "px-6 py-3 rounded-xl bg-red-500 text-white text-lg font-semibold shadow hover:bg-red-600 transition w-full sm:w-auto";
-
-/* ---------- LOADER ---------- */
 function Loader() {
   return (
     <div className="flex justify-center">
@@ -39,117 +23,79 @@ export default function Home() {
   const [text, setText] = useState("");
   const [recipe, setRecipe] = useState("");
   const [loading, setLoading] = useState(false);
-  const [recipeSeed, setRecipeSeed] = useState(0);
-
-  const [voices, setVoices] = useState([]);
-  const [selectedVoice, setSelectedVoice] = useState(null);
-
   const [listening, setListening] = useState(false);
+
   const recognitionRef = useRef(null);
-  const silenceTimer = useRef(null);
+  const audioRef = useRef(null);
 
-  /* ---------- LOAD VOICES (VERCEL SAFE) ---------- */
-  useEffect(() => {
-    const loadVoices = () => {
-      const v = getVoices(language);
-      setVoices(v);
-      setSelectedVoice(v[0] || null);
-    };
-
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null;
-    };
-  }, [language]);
-
-  /* ---------- SPEECH INPUT (NO iOS) ---------- */
+  /* ---------- SPEECH INPUT ---------- */
   const startListening = () => {
-    if (IS_IOS) {
-      alert("📱 iPhone does not support voice input. Please type.");
-      return;
-    }
-
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      alert("Voice input not supported on this browser");
+      alert("Voice input not supported");
       return;
     }
 
-    setText("");
     const recog = new SR();
+    recognitionRef.current = recog;
     recog.lang = LANG[language].speech;
-    recog.continuous = true;
-    recog.interimResults = true;
+    recog.continuous = false;
 
     recog.onresult = (e) => {
-      clearTimeout(silenceTimer.current);
-      let finalText = "";
-
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          finalText += e.results[i][0].transcript + " ";
-        }
-      }
-
-      if (finalText) setText(p => p + finalText);
-      silenceTimer.current = setTimeout(stopListening, 2000);
+      setText(e.results[0][0].transcript);
+      setListening(false);
     };
 
-    recog.onerror = stopListening;
+    recog.onerror = () => setListening(false);
+    recog.onend = () => setListening(false);
+
     recog.start();
-    recognitionRef.current = recog;
     setListening(true);
   };
 
   const stopListening = () => {
     recognitionRef.current?.stop();
-    recognitionRef.current = null;
     setListening(false);
-  };
-
-  /* ---------- RESET ---------- */
-  const resetAll = () => {
-    stopVoice();
-    stopListening();
-    setText("");
-    setRecipe("");
   };
 
   /* ---------- GENERATE ---------- */
   const generateRecipe = async () => {
     if (!text.trim()) return;
 
+    setLoading(true);
+    setRecipe("");
+    audioRef.current?.pause();
+
     try {
-      setLoading(true);
-      stopVoice();
+      const res = await getRecipe(text, language);
+      const recipeText = res?.data?.mainRecipe;
 
-      const res = await getRecipe(`${text} ${recipeSeed}`);
-      let finalRecipe = res.data.recipe;
-
-      if (language !== "en") {
-        const tRes = await translateRecipe(finalRecipe, language);
-        finalRecipe = tRes.data.translated;
+      if (!recipeText) {
+        alert("Please say dish name like: தக்காளி குழம்பு");
+        return;
       }
 
-      setRecipe(finalRecipe);
-      saveRecipe(finalRecipe);
+      setRecipe(recipeText);
 
-      speakText(finalRecipe, language, selectedVoice);
+      // 🔥 GOOGLE TTS AUDIO
+      audioRef.current = await playTTS(recipeText, language);
+
     } catch (err) {
       console.error(err);
-      alert("Recipe failed. Try again.");
+      alert("Recipe failed");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------- NEXT RECIPE ---------- */
-  const nextRecipe = () => {
-    stopVoice();
-    setRecipeSeed(s => s + 1);
-    setTimeout(generateRecipe, 100);
+  /* ---------- AUDIO CONTROLS ---------- */
+  const pauseAudio = () => audioRef.current?.pause();
+  const resumeAudio = () => audioRef.current?.play();
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
   };
 
   /* ---------- UI ---------- */
@@ -158,101 +104,70 @@ export default function Home() {
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-xl p-8">
 
         <h2 className="text-2xl font-bold text-center mb-6">
-          🍲 Recipe AI Assistant
+          🍲 Recipe AI
         </h2>
 
         {/* LANGUAGE */}
-        <div className="flex flex-wrap justify-center gap-3 mb-4">
-          {Object.entries(LANG).map(([code, l]) => (
+        <div className="flex justify-center gap-3 mb-4">
+          {["ta", "en"].map((l) => (
             <button
-              key={code}
-              onClick={() => setLanguage(code)}
-              className={`px-4 py-2 rounded-full text-lg ${
-                language === code ? "bg-black text-white" : "bg-gray-200"
+              key={l}
+              onClick={() => setLanguage(l)}
+              className={`px-4 py-2 rounded-full ${
+                language === l ? "bg-black text-white" : "bg-gray-200"
               }`}
             >
-              {l.label}
+              {LANG[l].label}
             </button>
           ))}
         </div>
 
-        {/* iOS Hint */}
-        {IS_IOS && (
-          <div className="text-center text-sm text-red-500 mb-3">
-            📱 iPhone: Voice input not supported. Type ingredients.
-          </div>
-        )}
-
         {/* INPUT */}
         <textarea
           className="w-full border rounded-xl p-4 text-lg"
-          rows={4}
-          placeholder={
-            IS_IOS
-              ? "⌨️ Type ingredients..."
-              : "🎤 Speak or type ingredients..."
-          }
+          rows={3}
+          placeholder="Speak or type ingredients..."
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
 
         {/* ACTIONS */}
-        <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
-
-          {!IS_IOS && !listening && (
+        <div className="flex flex-col sm:flex-row gap-4 mt-6">
+          {!listening ? (
             <button onClick={startListening} className={btnPrimary}>
               🎤 Speak
             </button>
-          )}
-
-          {listening && (
+          ) : (
             <button onClick={stopListening} className={btnDanger}>
               ⏹ Stop
             </button>
           )}
 
-          {loading ? <Loader /> : (
-            <button
-              onClick={generateRecipe}
-              className={btnSecondary}
-              disabled={!text.trim()}
-            >
+          {loading ? (
+            <Loader />
+          ) : (
+            <button onClick={generateRecipe} className={btnSecondary}>
               🍳 Generate
-            </button>
-          )}
-
-          {(text || recipe) && (
-            <button onClick={resetAll} className={btnSecondary}>
-              ❌ Cancel
-            </button>
-          )}
-
-          {recipe && (
-            <button onClick={nextRecipe} className={btnSecondary}>
-              🔄 Next Recipe
             </button>
           )}
         </div>
 
-        {/* OUTPUT */}
+        {/* AUDIO CONTROLS */}
         {recipe && (
-          <div className="mt-6 p-4 bg-gray-100 rounded-xl">
-
-            <div className="flex flex-wrap justify-center gap-3 mb-4">
-              <button onClick={() => speakText(recipe, language, selectedVoice)} className={btnSecondary}>🔊 Read</button>
-              <button onClick={() => speakSteps(recipe, language, selectedVoice)} className={btnSecondary}>🪜 Steps</button>
-              <button onClick={pauseVoice} className={btnSecondary}>⏸</button>
-              <button onClick={resumeVoice} className={btnSecondary}>▶</button>
-              <button onClick={stopVoice} className={btnDanger}>⏹</button>
-            </div>
-
-            <pre className="whitespace-pre-wrap text-base leading-relaxed">
-              {recipe}
-            </pre>
+          <div className="flex gap-3 mt-4">
+            <button onClick={pauseAudio} className={btnSecondary}>⏸ Pause</button>
+            <button onClick={resumeAudio} className={btnSecondary}>▶ Play</button>
+            <button onClick={stopAudio} className={btnDanger}>⏹ Stop</button>
           </div>
         )}
 
-        <RecipeHistory language={language} voice={selectedVoice} />
+        {/* RECIPE */}
+        {recipe && (
+          <div className="mt-6 p-4 bg-gray-100 rounded-xl">
+            <pre className="whitespace-pre-wrap">{recipe}</pre>
+          </div>
+        )}
+
       </div>
     </div>
   );

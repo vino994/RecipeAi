@@ -1,21 +1,9 @@
 import axios from "axios";
 
-const api = axios.create({
-  baseURL: "https://recipeaibackend-ula0.onrender.com/api",
-  headers: {
-    "Content-Type": "application/json"
-  }
+const API = axios.create({
+  baseURL: "http://localhost:5000",
+  timeout: 30000
 });
 
-/* 🍳 Get Recipe */
-export const getRecipe = (text) =>
-  api.post("/recipe", { text });
-
-/* 🌍 Translate FULL Recipe */
-export const translateRecipe = (text, lang) =>
-  api.post("/recipe/translate", {
-    text,
-    lang
-  });
-
-export default api;
+export const getRecipe = (text, lang) =>
+  API.post("/api/recipe", { text, lang });

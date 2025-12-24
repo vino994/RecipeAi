@@ -1,92 +1,55 @@
 let utterance = null;
-let stepIndex = 0;
-let steps = [];
 
 const LANG_MAP = {
   ta: "ta-IN",
-  ml: "ml-IN",
-  hi: "hi-IN",
   en: "en-US"
 };
 
-/* ---------------- CLEAN TEXT ---------------- */
+/* ---------- NUMBER FIX ---------- */
+function tamilizeNumbers(text) {
+  const map = {
+    0: "பூஜ்யம்",
+    1: "ஒன்று",
+    2: "இரண்டு",
+    3: "மூன்று",
+    4: "நான்கு",
+    5: "ஐந்து",
+    6: "ஆறு",
+    7: "ஏழு",
+    8: "எட்டு",
+    9: "ஒன்பது"
+  };
 
-function prepareText(text, lang) {
-  if (lang === "ta" || lang === "ml" || lang === "hi") {
-  return text.replace(/\s+/g, " ").trim();
-  }
-  return text;
+  return text.replace(/\d/g, d => map[d] || d);
 }
 
-/* ---------------- SPEAK FULL ---------------- */
+/* ---------- CLEAN ---------- */
+function cleanText(text, lang) {
+  let t = text.replace(/\s+/g, " ").trim();
+  if (lang === "ta") {
+    t = tamilizeNumbers(t);
+  }
+  return t;
+}
 
+/* ---------- SPEAK ---------- */
 export function speakText(text, lang, voice) {
   stopVoice();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-
-  const langMap = {
-    ta: "ta-IN",
-    hi: "hi-IN",
-    ml: "ml-IN",
-    en: "en-US"
-  };
-
-  utterance.lang = langMap[lang] || "en-US";
-  utterance.rate = lang === "en" ? 1 : 0.85;
+  utterance = new SpeechSynthesisUtterance(cleanText(text, lang));
+  utterance.lang = LANG_MAP[lang] || "en-US";
+  utterance.rate = lang === "ta" ? 0.85 : 1;
   utterance.pitch = 1;
 
-  // ✅ ONLY assign voice if available
-  if (voice) utterance.voice = voice;
+  // ✅ USE TAMIL VOICE IF AVAILABLE
+  if (voice) {
+    utterance.voice = voice;
+  }
 
   window.speechSynthesis.speak(utterance);
 }
 
-
-/* ---------------- STEP VOICE ---------------- */
-
-export function speakSteps(text, lang, voice) {
-  stopVoice();
-
-  steps = text
-    .split(/\n|\d+\./)
-    .map(s => s.trim())
-    .filter(Boolean);
-
-  stepIndex = 0;
-  speakNextStep(lang, voice);
-}
-
-function speakNextStep(lang, voice) {
-  if (stepIndex >= steps.length) return;
-
-  const prefixes = {
-    ta: "படி",
-    ml: "ഘട്ടം",
-    hi: "चरण",
-    en: "Step"
-  };
-
-  const line = `${prefixes[lang] || "Step"} ${stepIndex + 1}. ${
-    prepareText(steps[stepIndex], lang)
-  }`;
-
-  utterance = new SpeechSynthesisUtterance(line);
-  utterance.lang = LANG_MAP[lang] || "en-US";
-  utterance.rate = lang === "en" ? 1 : 0.85;
-
-  if (voice) utterance.voice = voice;
-
-  utterance.onend = () => {
-    stepIndex++;
-    speakNextStep(lang, voice);
-  };
-
-  window.speechSynthesis.speak(utterance);
-}
-
-/* ---------------- CONTROLS ---------------- */
-
+/* ---------- CONTROLS ---------- */
 export function pauseVoice() {
   window.speechSynthesis.pause();
 }
@@ -99,33 +62,16 @@ export function stopVoice() {
   window.speechSynthesis.cancel();
 }
 
-/* ---------------- VOICES ---------------- */
-
+/* ---------- 🔥 FIXED VOICE DETECTION ---------- */
 export function getVoices(lang) {
   const voices = window.speechSynthesis.getVoices();
+  const code = LANG_MAP[lang]; // ta-IN
 
-  const langMap = {
-    ta: ["ta-IN"],
-    hi: ["hi-IN"],
-    ml: ["ml-IN"],
-    en: ["en-US", "en-GB"]
-  };
-
-  // 1️⃣ Try exact language voices
-  const exact = voices.filter(v =>
-    langMap[lang]?.some(code => v.lang.startsWith(code))
+  // 🔥 VERY IMPORTANT: use startsWith
+  const matched = voices.filter(v =>
+    v.lang.toLowerCase().startsWith(code.toLowerCase())
   );
 
-  if (exact.length > 0) return exact;
-
-  // 2️⃣ Fallback to ANY Indian English voice
-  const indianEnglish = voices.filter(v =>
-    v.lang.startsWith("en-IN")
-  );
-
-  if (indianEnglish.length > 0) return indianEnglish;
-
-  // 3️⃣ Final fallback: ANY English voice
-  return voices.filter(v => v.lang.startsWith("en"));
+  // fallback: allow browser default
+  return matched.length ? matched : voices;
 }
-
