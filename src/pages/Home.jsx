@@ -12,12 +12,10 @@ import { saveRecipe } from "../utils/recipeHistory";
 import RecipeHistory from "../components/RecipeHistory";
 import { LANG } from "../utils/languageMap";
 
-/* ---------- DEVICE DETECT (ONLY ONCE) ---------- */
-
-const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+/* ---------- DEVICE DETECT (ONCE ONLY) ---------- */
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 /* ---------- BUTTON STYLES ---------- */
-
 const btnPrimary =
   "px-6 py-3 rounded-xl bg-black text-white text-lg font-semibold shadow hover:scale-105 transition w-full sm:w-auto disabled:opacity-50";
 
@@ -28,7 +26,6 @@ const btnDanger =
   "px-6 py-3 rounded-xl bg-red-500 text-white text-lg font-semibold shadow hover:bg-red-600 transition w-full sm:w-auto";
 
 /* ---------- LOADER ---------- */
-
 function Loader() {
   return (
     <div className="flex justify-center">
@@ -36,8 +33,6 @@ function Loader() {
     </div>
   );
 }
-
-/* ---------- MAIN ---------- */
 
 export default function Home() {
   const [language, setLanguage] = useState("ta");
@@ -53,8 +48,7 @@ export default function Home() {
   const recognitionRef = useRef(null);
   const silenceTimer = useRef(null);
 
-  /* ---------- LOAD VOICES ---------- */
-
+  /* ---------- LOAD VOICES (VERCEL SAFE) ---------- */
   useEffect(() => {
     const loadVoices = () => {
       const v = getVoices(language);
@@ -64,19 +58,22 @@ export default function Home() {
 
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
   }, [language]);
 
   /* ---------- SPEECH INPUT (NO iOS) ---------- */
-
   const startListening = () => {
-    if (isIOS) {
-      alert("🎤 Voice input not supported on iPhone. Please type ingredients.");
+    if (IS_IOS) {
+      alert("📱 iPhone does not support voice input. Please type.");
       return;
     }
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      alert("Voice input not supported");
+      alert("Voice input not supported on this browser");
       return;
     }
 
@@ -96,13 +93,12 @@ export default function Home() {
         }
       }
 
-      if (finalText) setText((p) => p + finalText);
-      silenceTimer.current = setTimeout(stopListening, 2500);
+      if (finalText) setText(p => p + finalText);
+      silenceTimer.current = setTimeout(stopListening, 2000);
     };
 
     recog.onerror = stopListening;
     recog.start();
-
     recognitionRef.current = recog;
     setListening(true);
   };
@@ -114,7 +110,6 @@ export default function Home() {
   };
 
   /* ---------- RESET ---------- */
-
   const resetAll = () => {
     stopVoice();
     stopListening();
@@ -123,7 +118,6 @@ export default function Home() {
   };
 
   /* ---------- GENERATE ---------- */
-
   const generateRecipe = async () => {
     if (!text.trim()) return;
 
@@ -141,25 +135,24 @@ export default function Home() {
 
       setRecipe(finalRecipe);
       saveRecipe(finalRecipe);
+
       speakText(finalRecipe, language, selectedVoice);
     } catch (err) {
       console.error(err);
-      alert("Recipe failed");
+      alert("Recipe failed. Try again.");
     } finally {
       setLoading(false);
     }
   };
 
   /* ---------- NEXT RECIPE ---------- */
-
   const nextRecipe = () => {
     stopVoice();
-    setRecipeSeed((s) => s + 1);
-    generateRecipe();
+    setRecipeSeed(s => s + 1);
+    setTimeout(generateRecipe, 100);
   };
 
   /* ---------- UI ---------- */
-
   return (
     <div className="min-h-screen flex justify-center px-4 pt-10">
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-xl p-8">
@@ -184,9 +177,9 @@ export default function Home() {
         </div>
 
         {/* iOS Hint */}
-        {isIOS && (
+        {IS_IOS && (
           <div className="text-center text-sm text-red-500 mb-3">
-            📱 iPhone: Voice input not supported. Please type ingredients.
+            📱 iPhone: Voice input not supported. Type ingredients.
           </div>
         )}
 
@@ -195,8 +188,8 @@ export default function Home() {
           className="w-full border rounded-xl p-4 text-lg"
           rows={4}
           placeholder={
-            isIOS
-              ? "⌨️ Type ingredients (voice not supported on iPhone)"
+            IS_IOS
+              ? "⌨️ Type ingredients..."
               : "🎤 Speak or type ingredients..."
           }
           value={text}
@@ -206,7 +199,7 @@ export default function Home() {
         {/* ACTIONS */}
         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
 
-          {!isIOS && !listening && (
+          {!IS_IOS && !listening && (
             <button onClick={startListening} className={btnPrimary}>
               🎤 Speak
             </button>
@@ -218,9 +211,7 @@ export default function Home() {
             </button>
           )}
 
-          {loading ? (
-            <Loader />
-          ) : (
+          {loading ? <Loader /> : (
             <button
               onClick={generateRecipe}
               className={btnSecondary}
