@@ -2,8 +2,10 @@ import axios from "axios";
 
 const API = axios.create({
   baseURL: "https://recipeaibackend-ula0.onrender.com",
-  timeout: 30000
 });
 
-export const getRecipe = (text, lang) =>
-  API.post("/api/recipe", { text, lang });
+export const searchRecipes = (payload) =>
+  API.post("/api/recipes", payload);
+
+export const translateText = (text, lang) =>
+  API.post("/api/translate", { text, lang });

@@ -1,18 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { getRecipe } from "../services/api";
-import { playTTS } from "../services/tts";
+import { searchRecipes } from "../services/api";
 import { LANG } from "../utils/languageMap";
+import RecipeCard from "../components/RecipeCard";
+import RecipeModal from "../components/RecipeModal";
 
-/* ---------- BUTTON STYLES ---------- */
 const btn =
-  "px-6 py-3 rounded-xl text-lg font-semibold shadow transition w-full sm:w-auto";
+  "px-5 py-2 rounded-lg text-sm font-semibold shadow transition";
 const btnPrimary = `${btn} bg-black text-white`;
 const btnSecondary = `${btn} bg-gray-200 text-gray-800`;
-const btnDanger = `${btn} bg-red-500 text-white`;
 
 function Loader() {
   return (
-    <div className="flex justify-center">
+    <div className="flex justify-center py-6">
       <div className="h-8 w-8 border-4 border-gray-400 border-t-transparent rounded-full animate-spin" />
     </div>
   );
@@ -21,75 +20,63 @@ function Loader() {
 export default function Home() {
   const [language, setLanguage] = useState("ta");
   const [text, setText] = useState("");
-  const [steps, setSteps] = useState([]);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [recipes, setRecipes] = useState([]);
+  const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   const recognitionRef = useRef(null);
-  const audioRef = useRef(null);
-  const autoPlayRef = useRef(false);
-  const stepRefs = useRef([]);
 
-  /* ---------- STOP AUDIO ---------- */
-  const stopAudio = () => {
-    autoPlayRef.current = false;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current = null;
+  /* ---------- LOAD RECIPES ---------- */
+  const loadRecipes = async (searchText = "", reset = false) => {
+    if (loading) return;
+
+    setLoading(true);
+    try {
+      const res = await searchRecipes({
+        text: searchText,
+        page: reset ? 1 : page,
+        limit: 12,
+      });
+
+      const newRecipes = res.data.recipes || [];
+
+      setRecipes(prev =>
+        reset ? newRecipes : [...prev, ...newRecipes]
+      );
+
+      setHasMore(res.data.hasMore);
+      setPage(p => p + 1);
+
+    } catch (err) {
+      console.error("Recipe load failed", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  /* ---------- SPEAK STEP ---------- */
-  const speakStep = async (index) => {
-    if (!steps[index]) return;
+  /* ---------- INITIAL LOAD ---------- */
+  useEffect(() => {
+    loadRecipes();
+  }, []);
 
-    setCurrentStep(index);
-
-    const audio = await playTTS(steps[index], language);
-    audioRef.current = audio;
-
-    audio.onended = () => {
-      if (autoPlayRef.current && index < steps.length - 1) {
-        speakStep(index + 1);
+  /* ---------- INFINITE SCROLL ---------- */
+  useEffect(() => {
+    const onScroll = () => {
+      if (
+        window.innerHeight + window.scrollY >=
+          document.body.offsetHeight - 300 &&
+        hasMore &&
+        !loading
+      ) {
+        loadRecipes(text);
       }
     };
 
-    audio.play();
-  };
-
-  /* ---------- AUTO START AFTER GENERATE (🔥 FIX) ---------- */
-  useEffect(() => {
-    if (steps.length > 0 && autoPlayRef.current) {
-      speakStep(0);
-    }
-  }, [steps]);
-
-  /* ---------- AUTO SCROLL ---------- */
-  useEffect(() => {
-    stepRefs.current[currentStep]?.scrollIntoView({
-      behavior: "smooth",
-      block: "center"
-    });
-  }, [currentStep]);
-
-  /* ---------- MANUAL CONTROLS ---------- */
-  const nextStep = () => {
-    stopAudio();
-    autoPlayRef.current = true;
-    if (currentStep < steps.length - 1) {
-      speakStep(currentStep + 1);
-    }
-  };
-
-  const prevStep = () => {
-    stopAudio();
-    autoPlayRef.current = true;
-    if (currentStep > 0) {
-      speakStep(currentStep - 1);
-    }
-  };
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [hasMore, loading, text]);
 
   /* ---------- SPEECH INPUT ---------- */
   const startListening = () => {
@@ -101,90 +88,78 @@ export default function Home() {
     recog.lang = LANG[language].speech;
 
     recog.onresult = (e) => {
-      setText(e.results[0][0].transcript);
-      setListening(false);
+      const spoken = e.results[0][0].transcript;
+      setText(spoken);
+      setPage(1);
+      loadRecipes(spoken, true);
     };
 
-    recog.onend = () => setListening(false);
     recog.start();
-    setListening(true);
   };
 
-  /* ---------- GENERATE ---------- */
-  const generateRecipe = async () => {
-    if (!text.trim()) return;
-
-    setLoading(true);
-    stopAudio();
-    setSteps([]);
-    setCurrentStep(0);
-
-    try {
-      const res = await getRecipe(text, language);
-      const recipeText = res?.data?.mainRecipe;
-      if (!recipeText) return alert("Say dish name like: தக்காளி குழம்பு");
-
-      const split = recipeText
-        .split(/\n|\d+\./)
-        .map(s => s.trim())
-        .filter(s => s.length > 3);
-
-      autoPlayRef.current = true; // 🔥 enable autoplay
-      setSteps(split);
-
-    } catch {
-      alert("Recipe failed");
-    } finally {
-      setLoading(false);
-    }
+  /* ---------- SEARCH ---------- */
+  const onSearch = () => {
+    setPage(1);
+    loadRecipes(text, true);
   };
 
-  /* ---------- UI ---------- */
   return (
-    <div className="min-h-screen flex justify-center px-4 pt-10">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-xl p-8">
+    <div className="min-h-screen bg-gray-50 px-6 py-6">
 
-        <h2 className="text-2xl font-bold text-center mb-6">🍲 Recipe AI</h2>
+      {/* HEADER */}
+      <div className="max-w-screen-xl mx-auto mb-6">
+        <h1 className="text-3xl font-bold text-center mb-4">
+          🍲 Recipe AI
+        </h1>
 
-        <textarea
-          className="w-full border rounded-xl p-4 text-lg"
-          rows={3}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+        {/* SEARCH BAR */}
+        <div className="flex gap-3 items-center">
+          <textarea
+            className="flex-1 border rounded-lg px-4 py-2 text-sm resize-none"
+            rows={1}
+            placeholder="Say ingredient or recipe name..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
 
-        <div className="flex gap-4 mt-6">
-          <button onClick={startListening} className={btnPrimary}>🎤 Speak</button>
-          {loading
-            ? <Loader />
-            : <button onClick={generateRecipe} className={btnSecondary}>🍳 Generate</button>}
+          <button onClick={startListening} className={btnPrimary}>
+            🎤
+          </button>
+
+          <button onClick={onSearch} className={btnSecondary}>
+            Search
+          </button>
         </div>
-
-        {steps.length > 0 && (
-          <div className="mt-6 space-y-3 max-h-[60vh] overflow-y-auto">
-            {steps.map((step, i) => (
-              <p
-                key={i}
-                ref={el => (stepRefs.current[i] = el)}
-                className={`p-3 rounded ${
-                  i === currentStep ? "bg-yellow-300 font-semibold" : "bg-gray-100"
-                }`}
-              >
-                {step}
-              </p>
-            ))}
-          </div>
-        )}
-
-        {steps.length > 0 && (
-          <div className="flex justify-center gap-3 mt-4">
-            <button onClick={prevStep} className={btnSecondary}>⏮ Prev</button>
-            <button onClick={nextStep} className={btnSecondary}>⏭ Next</button>
-            <button onClick={stopAudio} className={btnDanger}>⏹ Stop</button>
-          </div>
-        )}
-
       </div>
+
+      {/* GRID */}
+      <div className="max-w-screen-xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {recipes.map((recipe, index) => (
+          <RecipeCard
+            key={`${recipe.id}-${index}`}
+            recipe={recipe}
+            onView={() => setSelectedRecipe(recipe)}
+          />
+        ))}
+      </div>
+
+      {loading && <Loader />}
+
+      {!hasMore && (
+        <p className="text-center text-gray-500 mt-8">
+          No more recipes 🍽️
+        </p>
+      )}
+
+      {/* MODAL */}
+      {selectedRecipe && (
+        <RecipeModal
+          recipe={selectedRecipe}
+          language={language}
+          onClose={() => setSelectedRecipe(null)}
+        />
+      )}
+
     </div>
   );
 }
