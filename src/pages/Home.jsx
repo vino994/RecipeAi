@@ -364,7 +364,7 @@ export default function Home() {
       )}
 
       {/* Add these styles to your global CSS */}
-      <style jsx>{`
+      <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(0) rotate(0deg); }
           50% { transform: translateY(-20px) rotate(180deg); }
