@@ -34,13 +34,8 @@ export default function GlobalTourAI() {
     audioRef.current.play().catch(() => {});
   }, []);
 
-  const lowerAmbient = () => {
-    if (audioRef.current) audioRef.current.volume = 0.05;
-  };
-
-  const raiseAmbient = () => {
-    if (audioRef.current) audioRef.current.volume = 0.25;
-  };
+  const lowerAmbient = () => audioRef.current && (audioRef.current.volume = 0.05);
+  const raiseAmbient = () => audioRef.current && (audioRef.current.volume = 0.25);
 
   const toggleMute = () => {
     if (!audioRef.current) return;
@@ -78,7 +73,14 @@ export default function GlobalTourAI() {
   const [places, setPlaces] = useState([]);
   const [planDays, setPlanDays] = useState([]);
   const [placeImages, setPlaceImages] = useState({});
-  const [language, setLanguage] = useState("en"); // ✅ RESTORED
+  const [language, setLanguage] = useState("en");
+
+  /* ================= TIME SLOT ================= */
+  const getTimeSlot = (i) => {
+    if (i % 3 === 0) return "Morning (9 AM – 12 PM)";
+    if (i % 3 === 1) return "Afternoon (1 PM – 4 PM)";
+    return "Evening (5:30 PM – 8 PM)";
+  };
 
   /* ================= SEARCH ================= */
   const searchLocation = async (q) => {
@@ -117,9 +119,7 @@ export default function GlobalTourAI() {
 
     for (let i = 0; i < 3; i++) {
       const slice = places.slice(i * perDay, (i + 1) * perDay);
-      if (slice.length) {
-        days.push({ day: i + 1, places: slice });
-      }
+      if (slice.length) days.push({ day: i + 1, places: slice });
     }
     setPlanDays(days);
   };
@@ -155,11 +155,12 @@ export default function GlobalTourAI() {
 
     planDays.forEach((d) => {
       text += language === "ta" ? `நாள் ${d.day}. ` : `Day ${d.day}. `;
-      d.places.forEach((p) => {
+      d.places.forEach((p, i) => {
+        const slot = getTimeSlot(i);
         text +=
           language === "ta"
-            ? `${p.name} பார்வையிடுங்கள். `
-            : `Visit ${p.name}. `;
+            ? `${slot} நேரத்தில் ${p.name}. `
+            : `In the ${slot}, visit ${p.name}. `;
       });
     });
 
@@ -185,33 +186,19 @@ export default function GlobalTourAI() {
         {muted ? <VolumeX /> : <Volume2 />}
       </button>
 
-      <div className="relative z-10 pt-24 px-6 max-w-7xl mx-auto">
-        <h1 className="text-5xl font-bold text-center text-white mb-6">
+      <div className="relative z-10 pt-24 px-4 sm:px-6 max-w-7xl mx-auto">
+        <h1 className="text-4xl sm:text-5xl font-bold text-center text-white mb-6">
           🌍 Global Tour Planner
         </h1>
 
-        {/* LANGUAGE TOGGLE */}
+        {/* LANGUAGE */}
         <div className="flex justify-center gap-3 mb-6">
-          <button
-            onClick={() => setLanguage("en")}
-            className={`px-4 py-2 rounded text-white ${
-              language === "en" ? "bg-green-500" : "bg-white/20"
-            }`}
-          >
-            English
-          </button>
-          <button
-            onClick={() => setLanguage("ta")}
-            className={`px-4 py-2 rounded text-white ${
-              language === "ta" ? "bg-green-500" : "bg-white/20"
-            }`}
-          >
-            தமிழ்
-          </button>
+          <button onClick={() => setLanguage("en")} className={`px-4 py-2 rounded text-white ${language==="en"?"bg-green-500":"bg-white/20"}`}>English</button>
+          <button onClick={() => setLanguage("ta")} className={`px-4 py-2 rounded text-white ${language==="ta"?"bg-green-500":"bg-white/20"}`}>தமிழ்</button>
         </div>
 
-        <div className="bg-white/20 backdrop-blur-xl p-8 rounded-3xl">
-          <div className="flex gap-3 mb-4">
+        <div className="bg-white/20 backdrop-blur-xl p-6 sm:p-8 rounded-3xl">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <input
               value={location}
               onChange={(e) => {
@@ -225,65 +212,45 @@ export default function GlobalTourAI() {
           </div>
 
           {searchResults.map((r, i) => (
-            <div
-              key={i}
-              onClick={() => selectPlace(r)}
-              className="p-3 text-white cursor-pointer hover:bg-white/20 rounded"
-            >
-              <MapPin className="inline mr-2 w-4 h-4" />
-              {r.name}, {r.country}
+            <div key={i} onClick={() => selectPlace(r)} className="p-3 text-white cursor-pointer hover:bg-white/20 rounded">
+              <MapPin className="inline mr-2 w-4 h-4" /> {r.name}, {r.country}
             </div>
           ))}
 
-          {coordinates && places.length > 0 && (
-            <MapView center={coordinates} places={places} />
-          )}
+          {coordinates && places.length > 0 && <MapView center={coordinates} places={places} />}
 
-          <button
-            onClick={generatePlan}
-            className="w-full mt-6 py-4 bg-orange-500 text-white rounded"
-          >
+          <button onClick={generatePlan} className="w-full mt-6 py-4 bg-orange-500 text-white rounded">
             ✨ Generate Trip Plan
           </button>
 
           {planDays.length > 0 && (
-            <>
-              <button
-                onClick={playTripPlan}
-                className="w-full mt-3 py-3 bg-blue-500 text-white rounded"
-              >
+            <div className="mt-6">
+              <button onClick={playTripPlan} className="w-full py-3 bg-blue-500 text-white rounded mb-3">
                 <Play className="inline mr-2" /> Play Day-wise Voice
               </button>
 
-              <div className="flex gap-3 mt-2">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button onClick={pauseSpeech} className="flex-1 bg-yellow-500 p-2 rounded text-white"><Pause /></button>
                 <button onClick={resumeSpeech} className="flex-1 bg-green-600 p-2 rounded text-white">Resume</button>
                 <button onClick={stopSpeech} className="flex-1 bg-red-600 p-2 rounded text-white"><Square /></button>
               </div>
-            </>
+            </div>
           )}
         </div>
 
         {/* DAY DETAILS */}
         <AnimatePresence>
           {planDays.map((d) => (
-            <motion.div
-              key={d.day}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-8 bg-white/20 p-6 rounded text-white"
-            >
+            <motion.div key={d.day} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8 bg-white/20 p-6 rounded text-white">
               <h2 className="text-2xl font-bold mb-3">📅 Day {d.day}</h2>
 
-              {d.places.map((p) => (
+              {d.places.map((p, i) => (
                 <div key={p.id} className="mb-4 bg-white/20 p-3 rounded">
                   {placeImages[p.name] && (
-                    <img
-                      src={placeImages[p.name]}
-                      className="w-full h-40 object-cover rounded mb-2"
-                    />
+                    <img src={placeImages[p.name]} className="w-full h-40 object-cover rounded mb-2" />
                   )}
                   <div className="font-semibold">🏛 {p.name}</div>
+                  <div className="text-sm opacity-80">{getTimeSlot(i)}</div>
                 </div>
               ))}
             </motion.div>
