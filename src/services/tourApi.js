@@ -17,6 +17,14 @@ export async function getNearbyPlaces(lat, lng, radius = 50000) {
   return res.json();
 }
 
+/* ---------- PLACE IMAGE (GOOGLE PLACES) ---------- */
+export async function getPlaceImage(placeName) {
+  const res = await fetch(
+    `${API_BASE}/api/tour/place-image?name=${encodeURIComponent(placeName)}`
+  );
+  return res.json();
+}
+
 /* ---------- WEATHER ---------- */
 export async function getWeather(lat, lng) {
   const res = await fetch(
@@ -30,7 +38,7 @@ export async function generateItinerary(payload) {
   const res = await fetch(`${API_BASE}/api/tour/itinerary`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   return res.json();
 }

@@ -16,7 +16,7 @@ import "leaflet/dist/leaflet.css";
 import bgImage from "../assets/hero.jpg";
 import ambientAudio from "../assets/ambient.mp3";
 
-const API = "http://localhost:5000";
+const API = "https://recipeaibackend-ula0.onrender.com";
 
 export default function GlobalTourAI() {
   /* ================= PARALLAX ================= */
@@ -57,7 +57,7 @@ export default function GlobalTourAI() {
     lowerAmbient();
 
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
+    u.lang = language === "ta" ? "ta-IN" : "en-US";
     u.rate = 0.9;
     u.onend = raiseAmbient;
 
@@ -78,6 +78,7 @@ export default function GlobalTourAI() {
   const [places, setPlaces] = useState([]);
   const [planDays, setPlanDays] = useState([]);
   const [placeImages, setPlaceImages] = useState({});
+  const [language, setLanguage] = useState("en"); // ✅ RESTORED
 
   /* ================= SEARCH ================= */
   const searchLocation = async (q) => {
@@ -107,7 +108,7 @@ export default function GlobalTourAI() {
     if (d.success) setPlaces(d.places);
   };
 
-  /* ================= PLAN (FIXED) ================= */
+  /* ================= PLAN ================= */
   const generatePlan = () => {
     if (!places.length) return;
 
@@ -117,20 +118,15 @@ export default function GlobalTourAI() {
     for (let i = 0; i < 3; i++) {
       const slice = places.slice(i * perDay, (i + 1) * perDay);
       if (slice.length) {
-        days.push({
-          day: i + 1,
-          places: slice
-        });
+        days.push({ day: i + 1, places: slice });
       }
     }
-
     setPlanDays(days);
   };
 
   /* ================= IMAGE FETCH ================= */
   const fetchPlaceImage = async (name) => {
     if (placeImages[name]) return;
-
     try {
       const r = await fetch(
         `${API}/api/tour/place-image?name=${encodeURIComponent(name)}`
@@ -148,26 +144,38 @@ export default function GlobalTourAI() {
     );
   }, [planDays]);
 
+  /* ================= DAY-WISE VOICE ================= */
+  const playTripPlan = () => {
+    if (!planDays.length) return;
+
+    let text =
+      language === "ta"
+        ? `${location}க்கு உங்கள் பயண திட்டம். `
+        : `Welcome to your travel plan for ${location}. `;
+
+    planDays.forEach((d) => {
+      text += language === "ta" ? `நாள் ${d.day}. ` : `Day ${d.day}. `;
+      d.places.forEach((p) => {
+        text +=
+          language === "ta"
+            ? `${p.name} பார்வையிடுங்கள். `
+            : `Visit ${p.name}. `;
+      });
+    });
+
+    speak(text);
+  };
+
   /* ================= UI ================= */
   return (
-<div className="relative min-h-[100svh] w-full overflow-hidden">
-
-      {/* AUDIO */}
+    <div className="relative min-h-[100svh] w-full overflow-hidden">
       <audio ref={audioRef} src={ambientAudio} />
 
       {/* BACKGROUND */}
-<motion.div
-  style={{ y: bgY }}
-  className="fixed inset-0 w-screen min-h-[100svh] -z-10"
->
-  <img
-    src={bgImage}
-    className="w-full h-full object-cover"
-    alt="background"
-  />
-  <div className="absolute inset-0 bg-black/50" />
-</motion.div>
-
+      <motion.div style={{ y: bgY }} className="fixed inset-0 -z-10">
+        <img src={bgImage} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/50" />
+      </motion.div>
 
       {/* MUTE */}
       <button
@@ -178,12 +186,31 @@ export default function GlobalTourAI() {
       </button>
 
       <div className="relative z-10 pt-24 px-6 max-w-7xl mx-auto">
-        <h1 className="text-5xl font-bold text-center text-white mb-10">
+        <h1 className="text-5xl font-bold text-center text-white mb-6">
           🌍 Global Tour Planner
         </h1>
 
-        <div className="bg-white/20 backdrop-blur-xl p-8 rounded-3xl">
+        {/* LANGUAGE TOGGLE */}
+        <div className="flex justify-center gap-3 mb-6">
+          <button
+            onClick={() => setLanguage("en")}
+            className={`px-4 py-2 rounded text-white ${
+              language === "en" ? "bg-green-500" : "bg-white/20"
+            }`}
+          >
+            English
+          </button>
+          <button
+            onClick={() => setLanguage("ta")}
+            className={`px-4 py-2 rounded text-white ${
+              language === "ta" ? "bg-green-500" : "bg-white/20"
+            }`}
+          >
+            தமிழ்
+          </button>
+        </div>
 
+        <div className="bg-white/20 backdrop-blur-xl p-8 rounded-3xl">
           <div className="flex gap-3 mb-4">
             <input
               value={location}
@@ -222,12 +249,10 @@ export default function GlobalTourAI() {
           {planDays.length > 0 && (
             <>
               <button
-                onClick={() =>
-                  speak(`Welcome to your guided tour of ${location}`)
-                }
+                onClick={playTripPlan}
                 className="w-full mt-3 py-3 bg-blue-500 text-white rounded"
               >
-                <Play className="inline mr-2" /> Play Tour Voice
+                <Play className="inline mr-2" /> Play Day-wise Voice
               </button>
 
               <div className="flex gap-3 mt-2">
