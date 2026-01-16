@@ -1,29 +1,28 @@
-import React, { useRef, useState } from "react";
+
+// src/components/tour/VoiceLocationInput.jsx
+import { useRef, useState } from "react";
 import { Mic, MicOff } from "lucide-react";
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-export default function VoiceLocationInput({ onLocationDetected, language = "en" }) {
+export default function VoiceLocationInput({ onLocationDetected, language }) {
   const recognitionRef = useRef(null);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
 
   const startListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
     if (!SpeechRecognition) {
-      setError("Speech recognition not supported in your browser");
+      setError("Speech recognition not supported");
       return;
     }
 
-    // Cleanup old instance
     if (recognitionRef.current) {
       recognitionRef.current.stop();
-      recognitionRef.current = null;
     }
 
     const recognition = new SpeechRecognition();
     recognition.lang = language === "ta" ? "ta-IN" : "en-US";
     recognition.interimResults = false;
-    recognition.continuous = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
@@ -34,22 +33,15 @@ export default function VoiceLocationInput({ onLocationDetected, language = "en"
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       setListening(false);
-      
-      if (transcript && transcript.trim()) {
+      if (transcript.trim()) {
         onLocationDetected(transcript.trim());
       }
     };
 
     recognition.onerror = (event) => {
       setListening(false);
-      console.error("Speech recognition error:", event.error);
-      
       if (event.error === 'not-allowed') {
-        setError("Microphone access denied. Please allow microphone access.");
-      } else if (event.error === 'no-speech') {
-        setError("No speech detected. Please try again.");
-      } else {
-        setError("Speech recognition error. Please try again.");
+        setError("Please allow microphone access");
       }
     };
 
@@ -61,7 +53,6 @@ export default function VoiceLocationInput({ onLocationDetected, language = "en"
       recognition.start();
       recognitionRef.current = recognition;
     } catch (error) {
-      console.error("Failed to start recognition:", error);
       setError("Failed to start voice recognition");
     }
   };
@@ -76,14 +67,10 @@ export default function VoiceLocationInput({ onLocationDetected, language = "en"
   return (
     <div className="relative">
       <button
-        type="button"
         onClick={listening ? stopListening : startListening}
         className={`px-4 py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2 min-w-[120px]
-          ${listening
-            ? "bg-red-500 animate-pulse"
-            : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-          }
-          text-white`}
+          ${listening ? "bg-red-500 animate-pulse" : "bg-gradient-to-r from-blue-600 to-purple-600"}
+          text-white hover:opacity-90`}
       >
         {listening ? (
           <>
@@ -102,10 +89,6 @@ export default function VoiceLocationInput({ onLocationDetected, language = "en"
         <div className="absolute top-full mt-2 left-0 right-0 bg-red-500 text-white text-xs p-2 rounded z-50">
           {error}
         </div>
-      )}
-      
-      {listening && (
-        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-ping" />
       )}
     </div>
   );

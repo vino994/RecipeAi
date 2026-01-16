@@ -1,52 +1,87 @@
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+import axios from "axios";
 
-/* ---------- SEARCH CITY ---------- */
-export async function searchPlaces(query) {
-  const res = await fetch(
-    `${API_BASE}/api/tour/places/search?query=${encodeURIComponent(query)}`
-  );
-  return res.json();
-}
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
-/* ---------- NEARBY PLACES ---------- */
-export async function getNearbyPlaces(lat, lng, radius = 50000) {
-  const res = await fetch(
-    `${API_BASE}/api/tour/places/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
-  );
-  return res.json();
-}
+export const searchPlaces = async (query, lang = "en") => {
+  try {
+    const response = await axios.get(`${API_URL}/tour/places/voice-search`, {
+      params: { query, lang }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Search places error:", error);
+    throw error;
+  }
+};
 
-/* ---------- PLACE IMAGE (GOOGLE PLACES) ---------- */
-export async function getPlaceImage(placeName) {
-  const res = await fetch(
-    `${API_BASE}/api/tour/place-image?name=${encodeURIComponent(placeName)}`
-  );
-  return res.json();
-}
+export const getPlaceDetails = async (placeId) => {
+  try {
+    const response = await axios.get(`${API_URL}/tour/place/details`, {
+      params: { id: placeId }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Get place details error:", error);
+    throw error;
+  }
+};
 
-/* ---------- WEATHER ---------- */
-export async function getWeather(lat, lng) {
-  const res = await fetch(
-    `${API_BASE}/api/tour/weather?lat=${lat}&lng=${lng}`
-  );
-  return res.json();
-}
+export const getNearbyPlaces = async (lat, lng, radius = 10000) => {
+  try {
+    const response = await axios.get(`${API_URL}/tour/places/nearby`, {
+      params: { lat, lng, radius }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Get nearby places error:", error);
+    throw error;
+  }
+};
 
-/* ---------- AI ITINERARY ---------- */
-export async function generateItinerary(payload) {
-  const res = await fetch(`${API_BASE}/api/tour/itinerary`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return res.json();
-}
+export const getWeather = async (lat, lng) => {
+  try {
+    const response = await axios.get(`${API_URL}/tour/weather`, {
+      params: { lat, lng }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Get weather error:", error);
+    throw error;
+  }
+};
 
-/* ---------- DIRECTIONS ---------- */
-export async function getDirections(from, to) {
-  const res = await fetch(
-    `${API_BASE}/api/tour/directions?fromLat=${from.lat}&fromLng=${from.lng}&toLat=${to.lat}&toLng=${to.lng}`
-  );
-  return res.json();
-}
+export const generateItinerary = async (data) => {
+  try {
+    const response = await axios.post(`${API_URL}/tour/itinerary`, data);
+    return response.data;
+  } catch (error) {
+    console.error("Generate itinerary error:", error);
+    throw error;
+  }
+};
+
+export const getVoiceGuide = async (place, lang = "en") => {
+  try {
+    const response = await axios.post(`${API_URL}/tour/voice-guide`, {
+      place,
+      lang
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Get voice guide error:", error);
+    throw error;
+  }
+};
+
+export const translateText = async (text, lang) => {
+  try {
+    const response = await axios.post(`${API_URL}/tour/translate/place`, {
+      text,
+      lang
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Translate text error:", error);
+    throw error;
+  }
+};

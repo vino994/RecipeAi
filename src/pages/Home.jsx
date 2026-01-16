@@ -87,8 +87,10 @@ export default function Home() {
 
   /* ---------- SPEECH INPUT ---------- */
   const startListening = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return alert("Voice input not supported");
+  if (typeof window === "undefined") return;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return alert("Voice input not supported");
 
     setIsListening(true);
     const recog = new SR();
@@ -295,7 +297,10 @@ export default function Home() {
                   key={`${recipe.id}-${index}`}
                   recipe={recipe}
                   index={index}
-                  onView={() => setSelectedRecipe(recipe)}
+                 onView={() => {
+  console.log("Clicked", recipe);
+  setSelectedRecipe(recipe);
+}}
                 />
               ))}
             </div>
